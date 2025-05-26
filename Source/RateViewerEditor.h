@@ -33,7 +33,8 @@
 	Includes buttons for opening the canvas in a tab or window
 */
 
-class RateViewerEditor : public VisualizerEditor
+class RateViewerEditor : public VisualizerEditor,
+						 public ComboBox::Listener
 {
    public:
 
@@ -46,12 +47,15 @@ class RateViewerEditor : public VisualizerEditor
 		/** Creates the canvas */
 		Visualizer* createNewCanvas() override;
 
+		void comboBoxChanged(ComboBox* comboBox) override;
+
 
    	private:
 
-		std::unique_ptr<ComboBox> electrodeList;
+		std::unique_ptr<ComboBox> electrodelayout;
 		/** Generates an assertion if this class leaks */
 		JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RateViewerEditor);
+
 };
 
 #endif // VISUALIZERPLUGINEDITOR_H_DEFINED

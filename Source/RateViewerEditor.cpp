@@ -31,7 +31,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 RateViewerEditor::RateViewerEditor(GenericProcessor* p)
     : VisualizerEditor(p, "Rate Viewer", 210)
 {
-
+    electrodelayout = std::make_unique<ComboBox>("Electrode Layout List");
+    electrodelayout->addListener(this);
+    electrodelayout->setBounds(50,40,120,20);
+    addAndMakeVisible(electrodelayout.get());
 }
 
 Visualizer* RateViewerEditor::createNewCanvas()
@@ -41,4 +44,9 @@ Visualizer* RateViewerEditor::createNewCanvas()
     rateViewerNode->canvas = rateViewerCanvas;
 
     return rateViewerCanvas;
+}
+
+void RateViewerEditor::comboBoxChanged(ComboBox* comboBox)
+{
+   // Keep it empty for now
 }
