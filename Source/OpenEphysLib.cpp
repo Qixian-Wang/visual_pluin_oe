@@ -22,7 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <PluginInfo.h>
 
-#include "VisualizerPlugin.h" // update to point to your custom header file
+#include "RateViewer.h" // update to point to your custom header file
 
 #include <string>
 
@@ -39,40 +39,40 @@ using namespace Plugin;
 
 extern "C" EXPORT void getLibInfo(Plugin::LibraryInfo* info)
 {
-	/* API version, defined by the GUI source.
-	Should not be changed to ensure it is always equal to the one used in the latest codebase.
-	The GUI refueses to load plugins with mismatched API versions */
-	info->apiVersion = PLUGIN_API_VER;
-	info->name = "VisualizerPlugin"; // Name of the plugin library
-	info->libVersion = "0.1.0"; //Version of the plugin
-	info->numPlugins = NUM_PLUGINS;
+   /* API version, defined by the GUI source.
+   Should not be changed to ensure it is always equal to the one used in the latest codebase.
+   The GUI refuses to load plugins with mismatched API versions */
+   info->apiVersion = PLUGIN_API_VER;
+   info->name = "Rate Viewer"; // Name of the plugin library <---- UPDATE
+   info->libVersion = "0.1.0"; //Version of the plugin
+   info->numPlugins = NUM_PLUGINS;
 }
 
 extern "C" EXPORT int getPluginInfo(int index, Plugin::PluginInfo* info)
 {
-	switch (index)
-	{
-		//one case per plugin. This example is for a processor which connects directly to the signal chain
-	case 0:
+   switch (index)
+   {
+      //one case per plugin. This example is for a processor which connects directly to the signal chain
+   case 0:
 
-		//Type of plugin. See "Source/Processors/PluginManager/OpenEphysPlugin.h" for complete info about the different type structures
-		info->type = Plugin::Type::PROCESSOR;
+      //Type of plugin. See "Source/Processors/PluginManager/OpenEphysPlugin.h" for complete info about the different type structures
+      info->type = Plugin::Type::PROCESSOR;
 
-		//Processor name
-		info->processor.name = "Visualizer Plugin"; // Processor name shown in the GUI
+      //Processor name
+      info->processor.name = "Rate Viewer"; // Processor name shown in the GUI <---- UPDATE
 
-		//Type of processor. Visualizers are usually sinks, but they can also be SOURCE or FILTER processors.
-		info->processor.type = Processor::Type::SINK;
+      //Type of processor. Visualizers are usually sinks, but they can also be SOURCE or FILTER processors.
+      info->processor.type = Processor::Type::SINK;
 
-		//Class factory pointer. Replace "ProcessorPluginSpace::ProcessorPlugin" with the namespace and class name.
-		info->processor.creator = &(Plugin::createProcessor<VisualizerPlugin>);
-		break;
+      //Class factory pointer. Replace "ProcessorPluginSpace::ProcessorPlugin" with the namespace and class name.
+      info->processor.creator = &(Plugin::createProcessor<RateViewer>); // <---- UPDATE
+      break;
 
-	default:
-		return -1;
-		break;
-	}
-	return 0;
+   default:
+      return -1;
+      break;
+   }
+   return 0;
 }
 
 #ifdef WIN32
