@@ -70,6 +70,9 @@ public:
 	
 	void paintOverChildren(Graphics& g) override;
 
+	void setCoords(const std::vector<juce::Point<float>>& newCoords);
+
+	
 private:
 	float sampleRate = 0.0f;
 

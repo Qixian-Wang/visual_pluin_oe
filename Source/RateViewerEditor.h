@@ -53,8 +53,12 @@ class RateViewerEditor : public VisualizerEditor,
    	private:
 
 		std::unique_ptr<ComboBox> electrodelayout;
+		std::vector<juce::Point<float>> coords;
+
 		/** Generates an assertion if this class leaks */
 		JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RateViewerEditor);
+		
+		
 
 };
 

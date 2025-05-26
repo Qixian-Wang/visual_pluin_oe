@@ -23,10 +23,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 #include "RateViewerEditor.h"
-
 #include "RateViewerCanvas.h"
 #include "RateViewer.h"
 
+#include <yaml-cpp/yaml.h>
+#include <juce_core/juce_core.h>
 
 RateViewerEditor::RateViewerEditor(GenericProcessor* p)
     : VisualizerEditor(p, "Rate Viewer", 210)
@@ -34,6 +35,12 @@ RateViewerEditor::RateViewerEditor(GenericProcessor* p)
     electrodelayout = std::make_unique<ComboBox>("Electrode Layout List");
     electrodelayout->addListener(this);
     electrodelayout->setBounds(50,40,120,20);
+
+    electrodelayout->addItem("64_intanRHD", 1);
+    electrodelayout->addItem("32-electrode RHD", 2);
+    electrodelayout->addItem("Custom layout",    3);
+    electrodelayout->addListener(this);
+
     addAndMakeVisible(electrodelayout.get());
 }
 
@@ -48,5 +55,27 @@ Visualizer* RateViewerEditor::createNewCanvas()
 
 void RateViewerEditor::comboBoxChanged(ComboBox* comboBox)
 {
-   // Keep it empty for now
+    if (comboBox->getSelectedId() == 1)
+    {
+        juce::URL yamlUrl ("https://github.com/GazzolaLab/MiV-OS/blob/main/miv/mea/electrodes/64_intanRHD.yaml");
+        juce::String yamlText = yamlUrl.readEntireTextStream();
+        YAML::Node config = YAML::Load(yamlText.toStdString());
+
+        for (auto node : config["pos"])
+        {
+            if (node.IsSequence() && node.size() >= 2)
+            {
+                float x = node[0].as<float>();
+                float y = node[1].as<float>();
+                coords.emplace_back(x, y);
+            }
+        }
+        if (auto* rv = dynamic_cast<RateViewer*>(getProcessor()))
+        {
+            if (auto* c = rv->canvas)
+            {
+                c->setCoords(coords);
+            }
+        }
+    }
 }

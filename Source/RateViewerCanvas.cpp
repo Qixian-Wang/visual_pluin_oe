@@ -219,3 +219,12 @@ void RateViewerCanvas::refresh()
     updateElectrodeLabels();
 	repaint();
 }
+
+void RateViewerCanvas::setCoords(const std::vector<juce::Point<float>>& newCoords)
+{
+    electrode_map.clear();
+    for (size_t i = 0; i < newCoords.size(); ++i)
+        electrode_map[(int)i] = { newCoords[i].x, newCoords[i].y };
+    resized();
+    repaint();
+}
