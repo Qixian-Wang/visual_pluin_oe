@@ -22,7 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "RateViewerCanvas.h"
-
+#include "RateViewerEditor.h"
 #include "RateViewer.h"
 
 
@@ -30,6 +30,7 @@ RateViewerCanvas::RateViewerCanvas(RateViewer* processor_)
 	: processor(processor_)
 {
 	plt.setBounds(5, 5, 1500, 1000);
+    refreshRate = 30;
 }
 
 
@@ -38,53 +39,84 @@ RateViewerCanvas::~RateViewerCanvas()
 
 }
 
+void RateViewerCanvas::setWindowSizeMs(int windowSize_)
+{
+    windowSize = windowSize_;
+    updateLayout();
+}
+
+void RateViewerCanvas::setBinSizeMs(int binSize_)
+{
+    binSize = binSize_;
+}
+
+void RateViewerCanvas::updateLayout()
+{
+    auto plotArea = Rectangle<int>(5, 5, windowSize, windowSize);
+    const float margin = 50.0f;
+    plotArea = plotArea.reduced(margin);
+    const float radius = 20.0f * windowSize / 1000.0f;
+
+    float max_x = std::numeric_limits<float>::min();
+    float min_x = std::numeric_limits<float>::max();
+    float max_y = std::numeric_limits<float>::min();
+    float min_y = std::numeric_limits<float>::max();
+
+    for (const auto& [_, coord] : electrode_map) {
+        max_x = std::max(max_x, coord.first);
+        min_x = std::min(min_x, coord.first);
+        max_y = std::max(max_y, coord.second);
+        min_y = std::min(min_y, coord.second);
+    }
+
+    float dx = plotArea.getWidth();
+    float dy = plotArea.getHeight();
+
+    int dx_text = 100;
+    
+    screenCoordinates.clear();
+    while (electrodeLabels.size() < electrode_map.size())
+        electrodeLabels.add(new Label());
+    while (electrodeLabels.size() > electrode_map.size())
+        electrodeLabels.removeLast();
+
+    int labelIndex = 0;
+    for (const auto& [idx, coord] : electrode_map) {
+        float norm_x = (coord.first - min_x) / (max_x - min_x);
+        float norm_y = (coord.second - min_y) / (max_y - min_y);
+        float screen_x = plotArea.getX() + norm_x * plotArea.getWidth();
+        float screen_y = plotArea.getY() + norm_y * plotArea.getHeight();
+        screenCoordinates[idx] = {screen_x, screen_y};
+
+        auto* rate_text = electrodeLabels[labelIndex++];
+        rate_text->setJustificationType(Justification::centred);
+        rate_text->setFont(Font(20.0f * windowSize / 1000.0f));
+        rate_text->setColour(Label::textColourId, Colours::white);
+        rate_text->setBounds((int)(screen_x - dx_text/2),
+                       (int)(screen_y + radius + 2),
+                       dx_text,
+                       (int)rate_text->getFont().getHeight());
+        addAndMakeVisible(rate_text);
+    }
+
+    electrodeImage = Image(Image::ARGB, getWidth(), getHeight(), true);
+    Graphics g(electrodeImage);
+    g.fillAll(Colours::transparentBlack);
+    
+    g.setColour(Colours::white.withAlpha(0.8f));
+    for (const auto& [idx, screen_coord] : screenCoordinates)
+    {
+        g.drawEllipse(screen_coord.first - radius, 
+                     screen_coord.second - radius, 
+                     radius*2.0f, radius*2.0f, 2.0f);
+    }
+    
+    repaint();
+}
 
 void RateViewerCanvas::resized()
 {
-    auto plotArea = plt.getBounds().toFloat();
 
-    const float margin = 50.0f;
-    plotArea = plotArea.reduced(margin);
-
-    const int numRows = 8;
-    const int numCols = 16;
-    dx = plotArea.getWidth()  / (numCols - 1);
-    dy = plotArea.getHeight() / (numRows);
-    const float radius = 15.0f;
-
-	int electrode_index = 0;
-    for (int row = 0; row < numRows; ++row)
-    {
-        for (int col = 0; col < numCols; ++col)
-        {
-            float x = plotArea.getX() + col * dx;
-            float y = plotArea.getY() + row * dy;	
-			electrode_map[electrode_index] = {x, y};
-			++ electrode_index;
-        }
-
-    }
-
-	while (electrodeLabels.size() < numRows * numCols)
-		electrodeLabels.add(new Label());
-	while (electrodeLabels.size() > numRows * numCols)
-		electrodeLabels.removeLast();
-
-	for (int idx = 0; idx < numRows * numCols; ++idx)
-	{
-    auto* rate_text = electrodeLabels[idx];
-    rate_text->setJustificationType(Justification::centred);
-    rate_text->setFont(Font(20.0f));
-    rate_text->setColour(Label::textColourId, Colours::white);
-
-    auto [x,y] = electrode_map[idx];
-    rate_text->setBounds((int)(x - dx/2),
-                   (int)(y + radius + 2),
-                   (int)dx,
-                   (int)rate_text->getFont().getHeight());
-
-    addAndMakeVisible(rate_text);
-	}
 }
 
 void RateViewerCanvas::refreshState()
@@ -94,37 +126,22 @@ void RateViewerCanvas::refreshState()
 
 void RateViewerCanvas::paintOverChildren(Graphics& g)
 {
-    drawElectrodeArray(g);
+    g.drawImageAt(electrodeImage, 0, 0);
+
     for (auto& kv : flashingflag)
     {
         int   ch   = kv.first;
         bool  flash= kv.second;
-        auto [x, y] = electrode_map[ch];
-		const float r = 20.0f;
+        const float radius = 15.0f * windowSize / 1000.0f;
 
-        if (flash)
-		{
-			g.setColour(Colours::red);
-			g.drawEllipse(x - r, y - r, r*2.0f, r*2.0f, 2.0f);
-		}
-
+        if (flash && screenCoordinates.find(ch) != screenCoordinates.end())
+        {
+            g.setColour(Colours::red);
+            g.fillEllipse(screenCoordinates[ch].first - radius,
+                screenCoordinates[ch].second - radius,
+                radius * 2.0f, radius * 2.0f);
+        }
     }
-	
-}
-
-void RateViewerCanvas::drawElectrodeArray(Graphics& g)
-{
-	const float radius = 15.0f;
-
-    g.setColour(Colours::white.withAlpha(0.8f));
-	int idx = 0;
-	for (auto& kv : electrode_map)
-	{
-		g.fillEllipse(kv.second.first - radius,
-			kv.second.second - radius,
-			radius * 2.0f, radius * 2.0f);
-	}
-		
 }
 
 void RateViewerCanvas::update()
@@ -145,86 +162,64 @@ void RateViewerCanvas::setPlotTitle(const String& title)
    plt.title(title);
 }
 
-void RateViewerCanvas::addSpike(int channelId, int64 sample_num)
+void RateViewerCanvas::addSpike(int channelId)
 {
-   	incomingSpikesPerChannel[channelId].push_back(sample_num);
-	flashingflag[channelId] = true;
-	flashEndTime[channelId] = Time::getMillisecondCounter() + 500;
-	repaint();
+    int64 currentTime = Time::getMillisecondCounter();
+    spikeTimestamps[channelId].push_back(currentTime);
+    
+    flashingflag[channelId] = true;
+    flashEndTime[channelId] = Time::getMillisecondCounter() + 200;
 }
 
-void RateViewerCanvas::setMostRecentSample(int64 sampleNum)
-{
-//    mostRecentSample = sampleNum;
-}
-
-bool RateViewerCanvas::countSpikes()
-{
-
-	int elapsedSamples = mostRecentSample - sampleOnLastRedraw;
-	float elapsedTimeMs = float(elapsedSamples) / sampleRate * 1000.0f;
-
-	// Only count spikes when the time since the last count is greater than the bin size
-	if (elapsedTimeMs < binSize)
-		return false;
-
-	spikeCounts.remove(0); // remove oldest count
-
-	int newSpikeCount = incomingSpikesPerChannel.size();
-
-	if (newSpikeCount > maxCount)
-		maxCount = newSpikeCount;
-
-	spikeCounts.add(newSpikeCount); // add most recent count
-
-	incomingSpikesPerChannel.clear();
-	sampleOnLastRedraw = mostRecentSample;
-
-	return true;
-}
 
 void RateViewerCanvas::updateElectrodeLabels()
 {
-  int total = electrodeLabels.size();
-  for (int i = 0; i < total; ++i)
-  {
-    float rate = channelRates[i];
-    electrodeLabels[i]->setText(String(rate, 1) + " Hz",
-                               NotificationType::dontSendNotification);
-  }
+    for (int i = 0; i < electrodeLabels.size(); ++i)
+    {
+        if (channelRates.find(i) != channelRates.end())
+        {
+            float rate = channelRates[i];
+            electrodeLabels[i]->setText(String(rate, 1) + " Hz",
+                                   NotificationType::dontSendNotification);
+        }
+        else
+        {
+            electrodeLabels[i]->setText("0.0 Hz",
+                                   NotificationType::dontSendNotification);
+        }
+    }
 }
 
 void RateViewerCanvas::refresh()
 {
-    for (auto& kv : incomingSpikesPerChannel)
-    {
-        int   ch    = kv.first;
-        auto& spikes= kv.second; 
-        int   count = (int)spikes.size();
-        float rate  = count * 1000.0f / binSize;
-        channelRates[ch] = rate;
-    }
+    int64 currentTime = Time::getMillisecondCounter();
+    int64 windowStart = currentTime - windowSize;
 
-	auto now = Time::getMillisecondCounter();
-    for (auto it = flashEndTime.begin(); it != flashEndTime.end(); )
+    for (auto& [channelId, timestamps] : spikeTimestamps)
     {
-        if (now >= it->second)
+        while (!timestamps.empty() && timestamps.front() < windowStart)
+        {
+            timestamps.pop_front();
+        }
+
+        float spikesInWindow = timestamps.size();
+        float windowSizeInSeconds = binSize / 1000.0f;
+        float rate = spikesInWindow / windowSizeInSeconds;  // Hz
+        
+        channelRates[channelId] = rate;
+    }
+    
+    for (auto it = flashEndTime.begin(); it != flashEndTime.end();)
+    {
+        if (currentTime >= it->second)
         {
             flashingflag[it->first] = false;
             it = flashEndTime.erase(it);
         }
         else ++it;
     }
-    incomingSpikesPerChannel.clear();
-    updateElectrodeLabels();
-	repaint();
-}
 
-void RateViewerCanvas::setCoords(const std::vector<juce::Point<float>>& newCoords)
-{
-    electrode_map.clear();
-    for (size_t i = 0; i < newCoords.size(); ++i)
-        electrode_map[(int)i] = { newCoords[i].x, newCoords[i].y };
-    resized();
+    updateElectrodeLabels();
     repaint();
 }
+

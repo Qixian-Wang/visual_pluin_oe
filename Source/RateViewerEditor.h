@@ -26,6 +26,7 @@
 #define VISUALIZERPLUGINEDITOR_H_DEFINED
 
 #include <VisualizerEditorHeaders.h>
+#include <fstream>
 
 /** 
 	The editor for the VisualizerPlugin
@@ -42,24 +43,22 @@ class RateViewerEditor : public VisualizerEditor,
 		RateViewerEditor(GenericProcessor* parentNode);
 
 		/** Destructor */
-		~RateViewerEditor() { }
+		~RateViewerEditor();
 
 		/** Creates the canvas */
 		Visualizer* createNewCanvas() override;
 
 		void comboBoxChanged(ComboBox* comboBox) override;
-
-
+		
    	private:
+        std::ofstream debugLogFile;
+        void writeToDebugLog(const String& message);
+        void initDebugLog();
 
 		std::unique_ptr<ComboBox> electrodelayout;
-		std::vector<juce::Point<float>> coords;
 
 		/** Generates an assertion if this class leaks */
 		JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RateViewerEditor);
-		
-		
-
 };
 
 #endif // VISUALIZERPLUGINEDITOR_H_DEFINED

@@ -63,22 +63,18 @@ public:
 	void setPlotTitle(const String& title);
 
 	/** Adds a spike sample number */
-	void addSpike(int channelId, int64 sample_number);
+	void addSpike(int channelId);
 
-	/** Sets the sample index for the latest buffer*/
-	void setMostRecentSample(int64 sampleNum);
-	
 	void paintOverChildren(Graphics& g) override;
 
-	void setCoords(const std::vector<juce::Point<float>>& newCoords);
-
+	void setWindowSizeMs(int windowSize_);
+    void setBinSizeMs(int binSize_);
 	
+	OwnedArray<Label> electrodeLabels;
+
+	std::map<int, std::pair<float, float>> electrode_map;
+
 private:
-	float sampleRate = 0.0f;
-
-	int windowSize = 1000;
-	int binSize = 50;
-
 	/** Pointer to the processor class */
 	RateViewer* processor;
 
@@ -88,29 +84,19 @@ private:
 	/** Generates an assertion if this class leaks */
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RateViewerCanvas);
 
-	int64 mostRecentSample = 0;
-	Array<double> binEdges;
-	Array<int> spikeCounts;
-
-	/** Recounts spikes/bin; returns true if a new bin is available */
-	bool countSpikes();
-
-	int64 sampleOnLastRedraw = 0;
-	int maxCount = 1;
-
-	void drawElectrodeArray(Graphics& g);
 	void updateElectrodeLabels();
+	void updateLayout();
 
-	OwnedArray<Label> electrodeLabels;
+	int windowSize = 1000;  // ms
+	int binSize = 50;      // ms
+
+	std::map<int, std::deque<int64_t>> spikeTimestamps;
 	std::map<int, float> channelRates;
-	std::map<int, std::vector<int64_t>> incomingSpikesPerChannel;
-	std::map<int, std::pair<float, float>> electrode_map;
-
 	std::map<int,uint32_t> flashEndTime;
     std::map<int,bool> flashingflag;
-	float dx;
-	float dy;
+	std::map<int, std::pair<float, float>> screenCoordinates;
+	
+	Image electrodeImage;
 };
-
 
 #endif // SPECTRUMCANVAS_H_INCLUDED

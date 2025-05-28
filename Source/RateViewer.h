@@ -35,7 +35,8 @@ class RateViewerCanvas; // <--- need to declare this class at the top of the fil
    or an extended settings interface.
 */
 
-class RateViewer : public GenericProcessor
+class RateViewer : public GenericProcessor,
+				   private juce::AsyncUpdater
 {
 public:
 	/** The class constructor, used to initialize any members.*/
@@ -92,13 +93,20 @@ public:
 	/** Disables the editor*/
 	bool stopAcquisition() override;
 
+	void handleAsyncUpdate() override;
+
 private:
 
 	/** Generates an assertion if this class leaks */
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RateViewer);
 
-	Array<const SpikeChannel*>      channelList;
-	HashMap<const SpikeChannel*, int> channelIndexMap;
+	struct SpikeEvent {
+		int channel;
+	};
+
+	static constexpr int maxSpikeBufferSize = 20000;
+	juce::AbstractFifo spikeFifo{ maxSpikeBufferSize };
+	SpikeEvent spikeBuffer[maxSpikeBufferSize];
 };
 
 

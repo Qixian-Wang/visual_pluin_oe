@@ -29,7 +29,15 @@
 RateViewer::RateViewer()
  : GenericProcessor("Rate Viewer")
 {
+    addIntParameter(Parameter::GLOBAL_SCOPE,
+                    "window_size",
+                    "Size of the window in ms",
+                    1000, 100, 5000); // Default: 1000, Min: 100, Max: 5000
 
+    addIntParameter(Parameter::GLOBAL_SCOPE,
+                    "bin_size",
+                    "Size of the bins in ms",
+                    50, 25, 500); // Default: 50, Min: 25, Max: 500
 }
 
 
@@ -48,18 +56,10 @@ AudioProcessorEditor* RateViewer::createEditor()
 
 void RateViewer::updateSettings()
 {
-    channelList.clear();
-    channelIndexMap.clear();
-
-    int idx = 0;
-    for (auto channel : spikeChannels)
+    if (canvas != nullptr)
     {
-        if (channel->isValid())
-        {
-            channelList.add(channel);
-            channelIndexMap.set(channel, idx);
-            ++idx;
-        }
+        parameterValueChanged(getParameter("window_size"));
+        parameterValueChanged(getParameter("bin_size"));
     }
 
 }
@@ -78,10 +78,6 @@ void RateViewer::process(AudioBuffer<float>& buffer)
         auto nSamples   = getNumSamplesInBlock(sid);
         mostRecent = jmax(mostRecent, blockStart + (int64)nSamples);
     }
-
-    if (canvas)
-        canvas->setMostRecentSample(mostRecent);
-	 
 }
 
 
@@ -110,17 +106,58 @@ void RateViewer::loadCustomParametersFromXml(XmlElement* parentElement)
 
 void RateViewer::parameterValueChanged(Parameter* param)
 {
+   if (param->getName().equalsIgnoreCase("window_size"))
+   {
+      int windowSize = (int)param->getValue();
 
+      if (canvas != nullptr)
+            canvas->setWindowSizeMs(windowSize);  // Update window size in canvas
+   }
+   else if (param->getName().equalsIgnoreCase("bin_size"))
+   {
+      int binSize = (int)param->getValue();
+
+      if (canvas != nullptr)
+            canvas->setBinSizeMs(binSize); // update bin size in canvas
+   }
 }
 
-void RateViewer::handleSpike(SpikePtr spike)
+
+void RateViewer::handleSpike (SpikePtr spike)
+{
+    int start1, size1, start2, size2;
+    spikeFifo.prepareToWrite(1, start1, size1, start2, size2);
+
+    if (size1 > 0)
+        spikeBuffer[start1] = {spike->getChannelInfo()->getGlobalIndex()};
+    if (size2 > 0)
+        spikeBuffer[start2] = {spike->getChannelInfo()->getGlobalIndex()};
+
+    spikeFifo.finishedWrite (size1 + size2);
+
+    triggerAsyncUpdate();
+}
+
+void RateViewer::handleAsyncUpdate()
 {
     if (! canvas)
         return;
 
-    auto* chinfo = spike->getChannelInfo();
-    auto idx = channelIndexMap[chinfo];
-    canvas->addSpike(idx, spike->getSampleNumber());
+    int start1, size1, start2, size2;
+    spikeFifo.prepareToRead(1, start1, size1, start2, size2);
+
+    if (size1 > 0)
+    {
+        auto& evt = spikeBuffer[start1];
+        canvas->addSpike (evt.channel);
+    }
+    if (size2 > 0)
+    {
+        auto& evt = spikeBuffer[start2];
+        canvas->addSpike (evt.channel);
+    }
+
+    spikeFifo.finishedRead (size1 + size2);
 }
 
 bool RateViewer::startAcquisition()

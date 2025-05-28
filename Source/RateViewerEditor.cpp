@@ -29,6 +29,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <yaml-cpp/yaml.h>
 #include <juce_core/juce_core.h>
 
+#include "../../../plugin-GUI/Source/Utils/Utils.h"
+
 RateViewerEditor::RateViewerEditor(GenericProcessor* p)
     : VisualizerEditor(p, "Rate Viewer", 210)
 {
@@ -42,6 +44,47 @@ RateViewerEditor::RateViewerEditor(GenericProcessor* p)
     electrodelayout->addListener(this);
 
     addAndMakeVisible(electrodelayout.get());
+
+    addTextBoxParameterEditor("window_size", 15, 75);
+    addTextBoxParameterEditor("bin_size", 120, 75);
+
+    initDebugLog();
+}
+
+RateViewerEditor::~RateViewerEditor()
+{
+    if (debugLogFile.is_open())
+        debugLogFile.close();
+}
+
+void RateViewerEditor::initDebugLog()
+{
+    Time now = Time::getCurrentTime();
+    String timestamp = now.formatted("%Y%m%d_%H%M%S");
+    
+    File logDir = File::getSpecialLocation(File::userDocumentsDirectory)
+                    .getChildFile("Open Ephys")
+                    .getChildFile("RateViewer_logs");
+    
+    if (!logDir.exists())
+        logDir.createDirectory();
+    
+    File logFile = logDir.getChildFile("rateviewer_debug_" + timestamp + ".log");
+    debugLogFile.open(logFile.getFullPathName().toStdString(), std::ios::out | std::ios::app);
+    
+    if (debugLogFile.is_open())
+    {
+        writeToDebugLog("=== Log Started at " + now.toString(true, true, true, true) + " ===");
+    }
+}
+
+void RateViewerEditor::writeToDebugLog(const String& message)
+{
+    if (debugLogFile.is_open())
+    {
+        debugLogFile << " - " << message.toStdString() << std::endl;
+        debugLogFile.flush(); 
+    }
 }
 
 Visualizer* RateViewerEditor::createNewCanvas()
@@ -49,33 +92,91 @@ Visualizer* RateViewerEditor::createNewCanvas()
     RateViewer* rateViewerNode = (RateViewer*) getProcessor();
     RateViewerCanvas* rateViewerCanvas = new RateViewerCanvas(rateViewerNode);
     rateViewerNode->canvas = rateViewerCanvas;
-
+    rateViewerCanvas->setWindowSizeMs(rateViewerNode->getParameter("window_size")->getValue());
+    rateViewerCanvas->setBinSizeMs(rateViewerNode->getParameter("bin_size")->getValue());
     return rateViewerCanvas;
 }
 
 void RateViewerEditor::comboBoxChanged(ComboBox* comboBox)
 {
+    writeToDebugLog("ComboBox changed, selected ID: " + String(comboBox->getSelectedId()));
+    
     if (comboBox->getSelectedId() == 1)
     {
-        juce::URL yamlUrl ("https://github.com/GazzolaLab/MiV-OS/blob/main/miv/mea/electrodes/64_intanRHD.yaml");
-        juce::String yamlText = yamlUrl.readEntireTextStream();
-        YAML::Node config = YAML::Load(yamlText.toStdString());
-
-        for (auto node : config["pos"])
-        {
-            if (node.IsSequence() && node.size() >= 2)
-            {
-                float x = node[0].as<float>();
-                float y = node[1].as<float>();
-                coords.emplace_back(x, y);
+        std::string filename = "/Users/aia/Downloads/64_intanRHD.yaml";
+        writeToDebugLog("Attempting to load YAML file: " + String(filename));
+        
+        try {
+            File yamlFile(filename);
+            if (!yamlFile.exists()) {
+                writeToDebugLog("ERROR: YAML file does not exist: " + String(filename));
+                return;
             }
-        }
-        if (auto* rv = dynamic_cast<RateViewer*>(getProcessor()))
-        {
-            if (auto* c = rv->canvas)
-            {
-                c->setCoords(coords);
+            
+            writeToDebugLog("File exists, attempting to parse YAML...");
+            YAML::Node config = YAML::LoadFile(filename);
+            
+            if (!config) {
+                writeToDebugLog("ERROR: Failed to load YAML file or file is empty");
+                return;
             }
+            
+            writeToDebugLog("YAML loaded successfully");
+            
+            if (!config["pos"]) {
+                writeToDebugLog("ERROR: YAML file does not contain 'pos' key");
+                return;
+            }
+            
+            writeToDebugLog("Found 'pos' key in YAML");
+            
+            auto pos_node = config["pos"];
+            writeToDebugLog("pos node type: " + String(pos_node.Type()) + ", size: " + String(pos_node.size()));
+    
+            int nodeIndex = 0;
+            
+            for (auto node : pos_node)
+            {
+                writeToDebugLog("Processing node " + String(nodeIndex));
+                
+                if (node[0].IsNull() || node[1].IsNull()) 
+                {
+                    continue;
+                } 
+                else {
+                    float x = node[0].as<float>();
+                    float y = node[1].as<float>();
+                    
+                    if (auto* rv = dynamic_cast<RateViewer*>(getProcessor()))
+                    {
+                        if (auto* c = rv->canvas)
+                        {
+                            c->electrode_map[nodeIndex] = {x, y};
+                            c->electrodeLabels.add(new Label());
+                            writeToDebugLog("Added coordinate pair: (" + String(x) + ", " + String(y) + ")");
+                        }
+                    }
+                }
+                     
+                nodeIndex++;
+            }
+            
+            writeToDebugLog("Successfully processed coordinates");
+            
+            if (auto* rv = dynamic_cast<RateViewer*>(getProcessor()))
+            {
+                if (auto* c = rv->canvas)
+                {
+                    c->setWindowSizeMs(1000);
+                }
+            }
+            
+        } catch (const YAML::Exception& e) {
+            writeToDebugLog("ERROR: YAML Exception: " + String(e.what()));
+        } catch (const std::exception& e) {
+            writeToDebugLog("ERROR: Standard Exception: " + String(e.what()));
+        } catch (...) {
+            writeToDebugLog("ERROR: Unknown exception occurred while processing YAML file");
         }
     }
 }
