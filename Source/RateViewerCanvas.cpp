@@ -55,7 +55,7 @@ void RateViewerCanvas::updateLayout()
     auto plotArea = Rectangle<int>(5, 5, windowSize, windowSize);
     const float margin = 50.0f;
     plotArea = plotArea.reduced(margin);
-    const float radius = 20.0f * windowSize / 1000.0f;
+    const float radius = 10.0f * windowSize / 1000.0f;
 
     float max_x = std::numeric_limits<float>::min();
     float min_x = std::numeric_limits<float>::max();
@@ -72,7 +72,7 @@ void RateViewerCanvas::updateLayout()
     float dx = plotArea.getWidth();
     float dy = plotArea.getHeight();
 
-    int dx_text = 100;
+    int dx_text = 80 * windowSize / 1000.0f;
     
     screenCoordinates.clear();
     while (electrodeLabels.size() < electrode_map.size())
@@ -90,7 +90,7 @@ void RateViewerCanvas::updateLayout()
 
         auto* rate_text = electrodeLabels[labelIndex++];
         rate_text->setJustificationType(Justification::centred);
-        rate_text->setFont(Font(20.0f * windowSize / 1000.0f));
+        rate_text->setFont(Font(14.0f * windowSize / 1000.0f));
         rate_text->setColour(Label::textColourId, Colours::white);
         rate_text->setBounds((int)(screen_x - dx_text/2),
                        (int)(screen_y + radius + 2),
@@ -132,7 +132,7 @@ void RateViewerCanvas::paintOverChildren(Graphics& g)
     {
         int   ch   = kv.first;
         bool  flash= kv.second;
-        const float radius = 15.0f * windowSize / 1000.0f;
+        const float radius = 5.0f * windowSize / 1000.0f;
 
         if (flash && screenCoordinates.find(ch) != screenCoordinates.end())
         {
@@ -179,12 +179,12 @@ void RateViewerCanvas::updateElectrodeLabels()
         if (channelRates.find(i) != channelRates.end())
         {
             float rate = channelRates[i];
-            electrodeLabels[i]->setText(String(rate, 1) + " Hz",
+            electrodeLabels[i]->setText(String(rate, 1),
                                    NotificationType::dontSendNotification);
         }
         else
         {
-            electrodeLabels[i]->setText("0.0 Hz",
+            electrodeLabels[i]->setText("0.0",
                                    NotificationType::dontSendNotification);
         }
     }

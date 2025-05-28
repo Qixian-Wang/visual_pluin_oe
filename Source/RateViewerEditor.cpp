@@ -39,7 +39,7 @@ RateViewerEditor::RateViewerEditor(GenericProcessor* p)
     electrodelayout->setBounds(50,40,120,20);
 
     electrodelayout->addItem("64_intanRHD", 1);
-    electrodelayout->addItem("32-electrode RHD", 2);
+    electrodelayout->addItem("512_rhd", 2);
     electrodelayout->addItem("Custom layout",    3);
     electrodelayout->addListener(this);
 
@@ -101,82 +101,67 @@ void RateViewerEditor::comboBoxChanged(ComboBox* comboBox)
 {
     writeToDebugLog("ComboBox changed, selected ID: " + String(comboBox->getSelectedId()));
     
+    std::string filename;
     if (comboBox->getSelectedId() == 1)
     {
-        std::string filename = "/Users/aia/Downloads/64_intanRHD.yaml";
+        filename = "/Users/aia/Downloads/64_intanRHD.yaml";
         writeToDebugLog("Attempting to load YAML file: " + String(filename));
-        
-        try {
-            File yamlFile(filename);
-            if (!yamlFile.exists()) {
-                writeToDebugLog("ERROR: YAML file does not exist: " + String(filename));
-                return;
-            }
-            
-            writeToDebugLog("File exists, attempting to parse YAML...");
-            YAML::Node config = YAML::LoadFile(filename);
-            
-            if (!config) {
-                writeToDebugLog("ERROR: Failed to load YAML file or file is empty");
-                return;
-            }
-            
-            writeToDebugLog("YAML loaded successfully");
-            
-            if (!config["pos"]) {
-                writeToDebugLog("ERROR: YAML file does not contain 'pos' key");
-                return;
-            }
-            
-            writeToDebugLog("Found 'pos' key in YAML");
-            
-            auto pos_node = config["pos"];
-            writeToDebugLog("pos node type: " + String(pos_node.Type()) + ", size: " + String(pos_node.size()));
+    }
+
+    if (comboBox->getSelectedId() == 2)
+    {
+        filename = "/Users/aia/Downloads/512_rhd.yaml";
+        writeToDebugLog("Attempting to load YAML file: " + String(filename));
+    }
+
+    File yamlFile(filename);
+    if (!yamlFile.exists()) {
+        writeToDebugLog("ERROR: YAML file does not exist: " + String(filename));
+        return;
+    }
     
-            int nodeIndex = 0;
-            
-            for (auto node : pos_node)
-            {
-                writeToDebugLog("Processing node " + String(nodeIndex));
-                
-                if (node[0].IsNull() || node[1].IsNull()) 
-                {
-                    continue;
-                } 
-                else {
-                    float x = node[0].as<float>();
-                    float y = node[1].as<float>();
-                    
-                    if (auto* rv = dynamic_cast<RateViewer*>(getProcessor()))
-                    {
-                        if (auto* c = rv->canvas)
-                        {
-                            c->electrode_map[nodeIndex] = {x, y};
-                            c->electrodeLabels.add(new Label());
-                            writeToDebugLog("Added coordinate pair: (" + String(x) + ", " + String(y) + ")");
-                        }
-                    }
-                }
-                     
-                nodeIndex++;
-            }
-            
-            writeToDebugLog("Successfully processed coordinates");
+    writeToDebugLog("File exists, attempting to parse YAML...");
+    YAML::Node config = YAML::LoadFile(filename);
+
+    auto pos_node = config["pos"];
+    writeToDebugLog("pos node type: " + String(pos_node.Type()) + ", size: " + String(pos_node.size()));
+
+    int nodeIndex = 0;
+    
+    for (auto node : pos_node)
+    {
+        writeToDebugLog("Processing node " + String(nodeIndex));
+        
+        if (node[0].IsNull() || node[1].IsNull()) 
+        {
+            continue;
+        } 
+        else {
+            float x = node[0].as<float>();
+            float y = node[1].as<float>();
             
             if (auto* rv = dynamic_cast<RateViewer*>(getProcessor()))
             {
                 if (auto* c = rv->canvas)
                 {
-                    c->setWindowSizeMs(1000);
+                    c->electrode_map[nodeIndex] = {x, y};
+                    c->electrodeLabels.add(new Label());
+                    writeToDebugLog("Added coordinate pair: (" + String(x) + ", " + String(y) + ")");
                 }
             }
-            
-        } catch (const YAML::Exception& e) {
-            writeToDebugLog("ERROR: YAML Exception: " + String(e.what()));
-        } catch (const std::exception& e) {
-            writeToDebugLog("ERROR: Standard Exception: " + String(e.what()));
-        } catch (...) {
-            writeToDebugLog("ERROR: Unknown exception occurred while processing YAML file");
+        }
+                
+        nodeIndex++;
+    }
+    
+    writeToDebugLog("Successfully processed coordinates");
+    
+    if (auto* rv = dynamic_cast<RateViewer*>(getProcessor()))
+    {
+        if (auto* c = rv->canvas)
+        {
+            c->setWindowSizeMs(1000);
         }
     }
+
 }
