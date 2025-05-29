@@ -27,6 +27,7 @@
 
 #include <VisualizerEditorHeaders.h>
 #include <fstream>
+#include <map>
 
 /** 
 	The editor for the VisualizerPlugin
@@ -36,7 +37,8 @@
 
 class RateViewerEditor : public VisualizerEditor,
 						 public ComboBox::Listener,
-						 public Button::Listener
+						 public Button::Listener,
+                         public FilenameComponentListener
 {
    public:
 
@@ -51,14 +53,19 @@ class RateViewerEditor : public VisualizerEditor,
 
 		void comboBoxChanged(ComboBox* comboBox) override;
 		void buttonClicked(Button* button) override;
+		void filenameComponentChanged(FilenameComponent* fileComponentThatHasChanged) override;
 		
    	private:
         std::ofstream debugLogFile;
         void writeToDebugLog(const String& message);
         void initDebugLog();
+        void loadYamlFile(const String& filename);
 
 		std::unique_ptr<ComboBox> electrodelayout;
 		std::unique_ptr<ToggleButton> heatmapToggle;
+		std::unique_ptr<TextButton> loadFileButton;
+		std::unique_ptr<FilenameComponent> fileChooser;
+		std::map<int, String> layoutFiles;
 
 		/** Generates an assertion if this class leaks */
 		JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RateViewerEditor);

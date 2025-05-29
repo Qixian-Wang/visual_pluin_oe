@@ -36,21 +36,32 @@ RateViewerEditor::RateViewerEditor(GenericProcessor* p)
 {
     electrodelayout = std::make_unique<ComboBox>("Electrode Layout List");
     electrodelayout->addListener(this);
-    electrodelayout->setBounds(50,40,120,20);
-
-    electrodelayout->addItem("64_intanRHD", 1);
-    electrodelayout->addItem("512_rhd", 2);
-    electrodelayout->addItem("Custom layout",    3);
-    electrodelayout->addListener(this);
-
+    electrodelayout->setBounds(100,50,100,20);
     addAndMakeVisible(electrodelayout.get());
 
-    addTextBoxParameterEditor("window_size", 15, 75);
-    addTextBoxParameterEditor("max_rate", 120, 75);
+    loadFileButton = std::make_unique<TextButton>("Load Layout");
+    loadFileButton->addListener(this);
+    loadFileButton->setBounds(15, 50, 75, 20);
+    addAndMakeVisible(loadFileButton.get());
 
+    fileChooser = std::make_unique<FilenameComponent>("File Chooser",
+                                                     File(),
+                                                     false,
+                                                     false,
+                                                     false,
+                                                     "*.yaml",
+                                                     String(),
+                                                     "Choose a layout file");
+    fileChooser->addListener(this);
+    fileChooser->setBounds(50, 110, 120, 20);
+    fileChooser->setVisible(false);
+
+    addTextBoxParameterEditor("window_size", 15, 70);
+    addTextBoxParameterEditor("max_rate", 120, 70);
+ 
     heatmapToggle = std::make_unique<ToggleButton>("Heatmap");
     heatmapToggle->addListener(this);
-    heatmapToggle->setBounds(50, 20, 100, 20);
+    heatmapToggle->setBounds(70, 25, 100, 20);
     heatmapToggle->setToggleState(false, juce::dontSendNotification);
     addAndMakeVisible(heatmapToggle.get());
 
@@ -103,75 +114,6 @@ Visualizer* RateViewerEditor::createNewCanvas()
     return rateViewerCanvas;
 }
 
-void RateViewerEditor::comboBoxChanged(ComboBox* comboBox)
-{
-    writeToDebugLog("ComboBox changed, selected ID: " + String(comboBox->getSelectedId()));
-    
-    std::string filename;
-    if (comboBox->getSelectedId() == 1)
-    {
-        filename = "/Users/aia/Downloads/64_intanRHD.yaml";
-        writeToDebugLog("Attempting to load YAML file: " + String(filename));
-    }
-
-    if (comboBox->getSelectedId() == 2)
-    {
-        filename = "/Users/aia/Downloads/512_rhd.yaml";
-        writeToDebugLog("Attempting to load YAML file: " + String(filename));
-    }
-
-    File yamlFile(filename);
-    if (!yamlFile.exists()) {
-        writeToDebugLog("ERROR: YAML file does not exist: " + String(filename));
-        return;
-    }
-    
-    writeToDebugLog("File exists, attempting to parse YAML...");
-    YAML::Node config = YAML::LoadFile(filename);
-
-    auto pos_node = config["pos"];
-    writeToDebugLog("pos node type: " + String(pos_node.Type()) + ", size: " + String(pos_node.size()));
-
-    int nodeIndex = 0;
-    
-    for (auto node : pos_node)
-    {
-        writeToDebugLog("Processing node " + String(nodeIndex));
-        
-        if (node[0].IsNull() || node[1].IsNull()) 
-        {
-            continue;
-        } 
-        else {
-            float x = node[0].as<float>();
-            float y = node[1].as<float>();
-            
-            if (auto* rv = dynamic_cast<RateViewer*>(getProcessor()))
-            {
-                if (auto* c = rv->canvas)
-                {
-                    c->electrode_map[nodeIndex] = {x, y};
-                    c->electrodeLabels.add(new Label());
-                    writeToDebugLog("Added coordinate pair: (" + String(x) + ", " + String(y) + ")");
-                }
-            }
-        }
-                
-        nodeIndex++;
-    }
-    
-    writeToDebugLog("Successfully processed coordinates");
-    
-    if (auto* rv = dynamic_cast<RateViewer*>(getProcessor()))
-    {
-        if (auto* c = rv->canvas)
-        {
-            c->setWindowSizeMs(1000);
-        }
-    }
-
-}
-
 void RateViewerEditor::buttonClicked(Button* button)
 {
     if (button == heatmapToggle.get())
@@ -183,6 +125,102 @@ void RateViewerEditor::buttonClicked(Button* button)
             canvas->setUseHeatmap(heatmapToggle->getToggleState());
             canvas->repaint();
         }
-        
+    }
+    else if (button == loadFileButton.get())
+    {
+        FileChooser chooser("Select a YAML layout file...",
+                          File::getSpecialLocation(File::userHomeDirectory),
+                          "*.yaml");
+                          
+        if (chooser.browseForFileToOpen())
+        {
+            File yamlFile = chooser.getResult();
+            loadYamlFile(yamlFile.getFullPathName());
+            
+            // Add the file to the combobox if it's not already there
+            String filename = yamlFile.getFileName();
+            bool exists = false;
+            for (int i = 0; i < electrodelayout->getNumItems(); i++)
+            {
+                if (electrodelayout->getItemText(i) == filename)
+                {
+                    exists = true;
+                    break;
+                }
+            }
+            
+            if (!exists)
+            {
+                int itemId = electrodelayout->getNumItems() + 1;
+                electrodelayout->addItem(filename, itemId);
+                layoutFiles[itemId] = yamlFile.getFullPathName();
+                electrodelayout->setSelectedId(itemId, sendNotification);
+            }
+        }
+    }
+}
+
+void RateViewerEditor::comboBoxChanged(ComboBox* comboBox)
+{
+    int selectedId = comboBox->getSelectedId();
+
+    String fullPath = layoutFiles[selectedId];
+    File yamlFile(fullPath);
+    if (yamlFile.existsAsFile())
+    {
+        loadYamlFile(fullPath);
+    }
+}
+
+void RateViewerEditor::loadYamlFile(const String& filename)
+{
+    
+    File yamlFile(filename); 
+    YAML::Node config = YAML::LoadFile(filename.toStdString());
+
+    auto pos_node = config["pos"];
+
+    int nodeIndex = 0;
+    if (auto* rv = dynamic_cast<RateViewer*>(getProcessor()))
+    {
+        if (auto* c = rv->canvas)
+        {
+            c->electrode_map.clear();
+            c->electrodeLabels.clear();
+            for (auto node : pos_node)
+            {
+                if (node[0].IsNull() || node[1].IsNull()) 
+                {
+                    continue;
+                } 
+                else {
+                    float x = node[0].as<float>();
+                    float y = node[1].as<float>();
+                    c->electrode_map[nodeIndex] = {x, y};
+                    c->electrodeLabels.add(new Label());
+                }
+                nodeIndex++;
+            }     
+        }
+    }
+
+    if (auto* rv = dynamic_cast<RateViewer*>(getProcessor()))
+    {
+        if (auto* c = rv->canvas)
+        {
+            c->setWindowSizeMs(1000);
+        }
+    }
+}
+
+void RateViewerEditor::filenameComponentChanged(FilenameComponent* fileComponentThatHasChanged)
+{
+    if (fileComponentThatHasChanged == fileChooser.get())
+    {
+        File selectedFile = fileChooser->getCurrentFile();
+        if (selectedFile.existsAsFile())
+        {
+            loadYamlFile(selectedFile.getFullPathName());
+        }
     }
 }

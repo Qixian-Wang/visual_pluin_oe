@@ -53,7 +53,7 @@ void RateViewerCanvas::setMaxRate(int maxRate_)
 void RateViewerCanvas::updateLayout()
 {
     auto plotArea = Rectangle<int>(5, 5, windowSize, windowSize);
-    const float margin = 50.0f;
+    const float margin = 10.0f;
     plotArea = plotArea.reduced(margin);
 
     float max_x = std::numeric_limits<float>::min();
@@ -83,10 +83,6 @@ void RateViewerCanvas::updateLayout()
         }
     }
 
-    // Calculate scaling factors
-    float dx = plotArea.getWidth() / (max_x - min_x);
-    float dy = plotArea.getHeight() / (max_y - min_y);
-    
     // Calculate electrode size based on minimum distances
     electrode_width = (min_dx / (max_x - min_x)) * plotArea.getWidth();
     electrode_height = (min_dy / (max_y - min_y)) * plotArea.getHeight();
@@ -137,7 +133,7 @@ void RateViewerCanvas::updateLayout()
 
 void RateViewerCanvas::resized()
 {
-
+    repaint();
 }
 
 void RateViewerCanvas::refreshState()
@@ -190,7 +186,7 @@ void RateViewerCanvas::paint(Graphics& g)
 
 void RateViewerCanvas::setPlotTitle(const String& title)
 {
-   plt.title(title);
+    plt.title(title);
 }
 
 void RateViewerCanvas::addSpike(int channelId)
@@ -246,14 +242,14 @@ void RateViewerCanvas::refresh()
         channelRates[channelId] = weightedSpikes;
     }
     
-    for (auto it = flashEndTime.begin(); it != flashEndTime.end();)
+    for (auto channel = flashEndTime.begin(); channel != flashEndTime.end();)
     {
-        if (currentTime >= it->second)
+        if (currentTime >= channel->second)
         {
-            flashingflag[it->first] = false;
-            it = flashEndTime.erase(it);
+            flashingflag[channel->first] = false;
+            channel = flashEndTime.erase(channel);
         }
-        else ++it;
+        else ++channel;
     }
 
     updateElectrodeLabels();

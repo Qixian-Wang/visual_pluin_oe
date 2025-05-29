@@ -67,17 +67,7 @@ void RateViewer::updateSettings()
 
 void RateViewer::process(AudioBuffer<float>& buffer)
 {
-
     checkForEvents(true);
-
-    int64 mostRecent = 0;
-    for (auto stream : getDataStreams())
-    {
-        int sid = stream->getStreamId();
-        auto blockStart = getFirstSampleNumberForBlock(sid);
-        auto nSamples   = getNumSamplesInBlock(sid);
-        mostRecent = jmax(mostRecent, blockStart + (int64)nSamples);
-    }
 }
 
 
