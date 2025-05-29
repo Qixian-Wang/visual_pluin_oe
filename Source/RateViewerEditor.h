@@ -35,7 +35,8 @@
 */
 
 class RateViewerEditor : public VisualizerEditor,
-						 public ComboBox::Listener
+						 public ComboBox::Listener,
+						 public Button::Listener
 {
    public:
 
@@ -49,6 +50,7 @@ class RateViewerEditor : public VisualizerEditor,
 		Visualizer* createNewCanvas() override;
 
 		void comboBoxChanged(ComboBox* comboBox) override;
+		void buttonClicked(Button* button) override;
 		
    	private:
         std::ofstream debugLogFile;
@@ -56,6 +58,7 @@ class RateViewerEditor : public VisualizerEditor,
         void initDebugLog();
 
 		std::unique_ptr<ComboBox> electrodelayout;
+		std::unique_ptr<ToggleButton> heatmapToggle;
 
 		/** Generates an assertion if this class leaks */
 		JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RateViewerEditor);

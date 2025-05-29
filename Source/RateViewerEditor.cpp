@@ -46,7 +46,13 @@ RateViewerEditor::RateViewerEditor(GenericProcessor* p)
     addAndMakeVisible(electrodelayout.get());
 
     addTextBoxParameterEditor("window_size", 15, 75);
-    addTextBoxParameterEditor("bin_size", 120, 75);
+    addTextBoxParameterEditor("max_rate", 120, 75);
+
+    heatmapToggle = std::make_unique<ToggleButton>("Heatmap");
+    heatmapToggle->addListener(this);
+    heatmapToggle->setBounds(50, 20, 100, 20);
+    heatmapToggle->setToggleState(false, juce::dontSendNotification);
+    addAndMakeVisible(heatmapToggle.get());
 
     initDebugLog();
 }
@@ -93,7 +99,7 @@ Visualizer* RateViewerEditor::createNewCanvas()
     RateViewerCanvas* rateViewerCanvas = new RateViewerCanvas(rateViewerNode);
     rateViewerNode->canvas = rateViewerCanvas;
     rateViewerCanvas->setWindowSizeMs(rateViewerNode->getParameter("window_size")->getValue());
-    rateViewerCanvas->setBinSizeMs(rateViewerNode->getParameter("bin_size")->getValue());
+    rateViewerCanvas->setMaxRate(rateViewerNode->getParameter("max_rate")->getValue());
     return rateViewerCanvas;
 }
 
@@ -164,4 +170,19 @@ void RateViewerEditor::comboBoxChanged(ComboBox* comboBox)
         }
     }
 
+}
+
+void RateViewerEditor::buttonClicked(Button* button)
+{
+    if (button == heatmapToggle.get())
+    {
+        RateViewer* RateViewerNode = (RateViewer*) getProcessor();
+        RateViewerCanvas* canvas = (RateViewerCanvas*) RateViewerNode->canvas;
+        if (canvas != nullptr)
+        {
+            canvas->setUseHeatmap(heatmapToggle->getToggleState());
+            canvas->repaint();
+        }
+        
+    }
 }

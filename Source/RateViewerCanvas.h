@@ -65,14 +65,16 @@ public:
 	/** Adds a spike sample number */
 	void addSpike(int channelId);
 
-	void paintOverChildren(Graphics& g) override;
+	void paintOverChildren(Graphics& g);
 
 	void setWindowSizeMs(int windowSize_);
-    void setBinSizeMs(int binSize_);
+    void setMaxRate(int maxRate_);
 	
 	OwnedArray<Label> electrodeLabels;
 
 	std::map<int, std::pair<float, float>> electrode_map;
+
+	void setUseHeatmap(bool useHeatmap_) { useHeatmap = useHeatmap_; }
 
 private:
 	/** Pointer to the processor class */
@@ -87,8 +89,12 @@ private:
 	void updateElectrodeLabels();
 	void updateLayout();
 
-	int windowSize = 1000;  // ms
-	int binSize = 50;      // ms
+	int windowSize = 1000;
+	int maxRate = 50;
+	float electrode_width = 10;
+	float electrode_height = 10;
+
+	bool useHeatmap = false;
 
 	std::map<int, std::deque<int64_t>> spikeTimestamps;
 	std::map<int, float> channelRates;
@@ -97,6 +103,8 @@ private:
 	std::map<int, std::pair<float, float>> screenCoordinates;
 	
 	Image electrodeImage;
+
+	Colour getHeatMapColor(const std::map<int, float>& rates);
 };
 
 #endif // SPECTRUMCANVAS_H_INCLUDED

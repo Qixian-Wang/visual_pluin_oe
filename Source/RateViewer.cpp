@@ -30,14 +30,14 @@ RateViewer::RateViewer()
  : GenericProcessor("Rate Viewer")
 {
     addIntParameter(Parameter::GLOBAL_SCOPE,
+                    "max_rate",
+                    "Max tolerable rate in Hz",
+                    50, 5, 200); // Default: 50, Min: 5, Max: 200
+
+    addIntParameter(Parameter::GLOBAL_SCOPE,
                     "window_size",
                     "Size of the window in ms",
                     1000, 100, 5000); // Default: 1000, Min: 100, Max: 5000
-
-    addIntParameter(Parameter::GLOBAL_SCOPE,
-                    "bin_size",
-                    "Size of the bins in ms",
-                    50, 25, 500); // Default: 50, Min: 25, Max: 500
 }
 
 
@@ -59,7 +59,7 @@ void RateViewer::updateSettings()
     if (canvas != nullptr)
     {
         parameterValueChanged(getParameter("window_size"));
-        parameterValueChanged(getParameter("bin_size"));
+        parameterValueChanged(getParameter("max_rate"));
     }
 
 }
@@ -113,12 +113,12 @@ void RateViewer::parameterValueChanged(Parameter* param)
       if (canvas != nullptr)
             canvas->setWindowSizeMs(windowSize);  // Update window size in canvas
    }
-   else if (param->getName().equalsIgnoreCase("bin_size"))
+   else if (param->getName().equalsIgnoreCase("max_rate"))
    {
-      int binSize = (int)param->getValue();
+      int max_rate = (int)param->getValue();
 
       if (canvas != nullptr)
-            canvas->setBinSizeMs(binSize); // update bin size in canvas
+            canvas->setMaxRate(max_rate);
    }
 }
 

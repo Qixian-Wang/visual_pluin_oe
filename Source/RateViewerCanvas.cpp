@@ -45,9 +45,9 @@ void RateViewerCanvas::setWindowSizeMs(int windowSize_)
     updateLayout();
 }
 
-void RateViewerCanvas::setBinSizeMs(int binSize_)
+void RateViewerCanvas::setMaxRate(int maxRate_)
 {
-    binSize = binSize_;
+    maxRate = maxRate_;
 }
 
 void RateViewerCanvas::updateLayout()
@@ -55,7 +55,6 @@ void RateViewerCanvas::updateLayout()
     auto plotArea = Rectangle<int>(5, 5, windowSize, windowSize);
     const float margin = 50.0f;
     plotArea = plotArea.reduced(margin);
-    const float radius = 10.0f * windowSize / 1000.0f;
 
     float max_x = std::numeric_limits<float>::min();
     float min_x = std::numeric_limits<float>::max();
@@ -69,10 +68,30 @@ void RateViewerCanvas::updateLayout()
         min_y = std::min(min_y, coord.second);
     }
 
-    float dx = plotArea.getWidth();
-    float dy = plotArea.getHeight();
+    // Calculate minimum distances between electrodes
+    float min_dx = std::numeric_limits<float>::max();
+    float min_dy = std::numeric_limits<float>::max();
+    
+    for (const auto& [id1, coord1] : electrode_map) {
+        for (const auto& [id2, coord2] : electrode_map) {
+            if (id1 != id2) {
+                float dx = std::abs(coord1.first - coord2.first);
+                float dy = std::abs(coord1.second - coord2.second);
+                if (dx > 0) min_dx = std::min(min_dx, dx);
+                if (dy > 0) min_dy = std::min(min_dy, dy);
+            }
+        }
+    }
 
-    int dx_text = 80 * windowSize / 1000.0f;
+    // Calculate scaling factors
+    float dx = plotArea.getWidth() / (max_x - min_x);
+    float dy = plotArea.getHeight() / (max_y - min_y);
+    
+    // Calculate electrode size based on minimum distances
+    electrode_width = (min_dx / (max_x - min_x)) * plotArea.getWidth();
+    electrode_height = (min_dy / (max_y - min_y)) * plotArea.getHeight();
+
+    int dx_text = 80 * electrode_width / 100.0f;
     
     screenCoordinates.clear();
     while (electrodeLabels.size() < electrode_map.size())
@@ -90,10 +109,10 @@ void RateViewerCanvas::updateLayout()
 
         auto* rate_text = electrodeLabels[labelIndex++];
         rate_text->setJustificationType(Justification::centred);
-        rate_text->setFont(Font(14.0f * windowSize / 1000.0f));
+        rate_text->setFont(Font(20.0f * electrode_width / 100.0f));
         rate_text->setColour(Label::textColourId, Colours::white);
-        rate_text->setBounds((int)(screen_x - dx_text/2),
-                       (int)(screen_y + radius + 2),
+        rate_text->setBounds((int)(screen_x + electrode_width/2 - dx_text/2),
+                       (int)(screen_y + electrode_height * 0.8),
                        dx_text,
                        (int)rate_text->getFont().getHeight());
         addAndMakeVisible(rate_text);
@@ -106,9 +125,11 @@ void RateViewerCanvas::updateLayout()
     g.setColour(Colours::white.withAlpha(0.8f));
     for (const auto& [idx, screen_coord] : screenCoordinates)
     {
-        g.drawEllipse(screen_coord.first - radius, 
-                     screen_coord.second - radius, 
-                     radius*2.0f, radius*2.0f, 2.0f);
+        g.drawRect(screen_coord.first, 
+                  screen_coord.second, 
+                  electrode_width, 
+                  electrode_height,
+                  2.0f);
     }
     
     repaint();
@@ -127,19 +148,29 @@ void RateViewerCanvas::refreshState()
 void RateViewerCanvas::paintOverChildren(Graphics& g)
 {
     g.drawImageAt(electrodeImage, 0, 0);
+    
+    const float margin = 5.0f * electrode_width / 100.0f;
+
+    if (useHeatmap)
+    { 
+        g.setColour(getHeatMapColor(channelRates));
+    }
+    else
+    {
+        g.setColour(Colours::red);
+    }
 
     for (auto& kv : flashingflag)
     {
-        int   ch   = kv.first;
-        bool  flash= kv.second;
-        const float radius = 5.0f * windowSize / 1000.0f;
-
+        int ch = kv.first;
+        bool flash = kv.second;
+        
         if (flash && screenCoordinates.find(ch) != screenCoordinates.end())
         {
-            g.setColour(Colours::red);
-            g.fillEllipse(screenCoordinates[ch].first - radius,
-                screenCoordinates[ch].second - radius,
-                radius * 2.0f, radius * 2.0f);
+            g.fillRect(screenCoordinates[ch].first + margin,
+                      screenCoordinates[ch].second + margin,
+                      electrode_width - 2 * margin,
+                      electrode_height - 10 * margin);
         }
     }
 }
@@ -193,7 +224,7 @@ void RateViewerCanvas::updateElectrodeLabels()
 void RateViewerCanvas::refresh()
 {
     int64 currentTime = Time::getMillisecondCounter();
-    int64 windowStart = currentTime - windowSize;
+    int64 windowStart = currentTime - 1000;
 
     for (auto& [channelId, timestamps] : spikeTimestamps)
     {
@@ -202,11 +233,17 @@ void RateViewerCanvas::refresh()
             timestamps.pop_front();
         }
 
-        float spikesInWindow = timestamps.size();
-        float windowSizeInSeconds = binSize / 1000.0f;
-        float rate = spikesInWindow / windowSizeInSeconds;  // Hz
+        float weightedSpikes = 0.0f;
         
-        channelRates[channelId] = rate;
+        // Calculate weighted sum with exponential decay
+        for (const auto& timestamp : timestamps)
+        {
+            float timeDiff = (currentTime - timestamp) / 1000.0f; // Convert to seconds
+            float weight = std::exp(-timeDiff); // Exponential decay with time constant of 1 second
+            weightedSpikes += weight;
+        }
+
+        channelRates[channelId] = weightedSpikes;
     }
     
     for (auto it = flashEndTime.begin(); it != flashEndTime.end();)
@@ -221,5 +258,35 @@ void RateViewerCanvas::refresh()
 
     updateElectrodeLabels();
     repaint();
+}
+
+Colour RateViewerCanvas::getHeatMapColor(const std::map<int, float>& rates)
+{
+    float maxRate_ = 0.0f;
+    for (const auto& [_, rate] : rates)
+    {
+        maxRate_ = std::max(maxRate_, rate);
+    }
+
+    if (maxRate_ >= maxRate){
+        maxRate_ = maxRate;
+    }
+    
+    float totalRate = 0.0f;
+    for (const auto& [_, rate] : rates)
+    {
+        if(rate > maxRate){
+            totalRate += maxRate;
+        }
+        else{
+            totalRate += rate;
+        }
+        
+    }
+    float avgRate = totalRate / rates.size();
+
+    float normalizedRate = avgRate / maxRate_;
+    float hue = (1.0f - normalizedRate) * 0.7f;
+    return Colour::fromHSV(hue, 1.0f, 1.0f, 1.0f);
 }
 
